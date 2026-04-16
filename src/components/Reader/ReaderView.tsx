@@ -56,6 +56,24 @@ export const ReaderView = () => {
         }
     }, [isResonating]);
 
+    // Stop reading when window loses focus (backgrounded)
+    useEffect(() => {
+        const handleStop = () => {
+            console.log('[ReaderView] Window blurred or hidden - forcing stop');
+            setIsResonating(false);
+        };
+        window.addEventListener('blur', handleStop);
+        window.addEventListener('contextmenu', handleStop); // Prevents hold-triggering context menu stuck
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) handleStop();
+        });
+        return () => {
+            window.removeEventListener('blur', handleStop);
+            window.removeEventListener('contextmenu', handleStop);
+            document.removeEventListener('visibilitychange', handleStop);
+        };
+    }, [setIsResonating]);
+
     // Resonance Engine (RSVP loop)
     useEffect(() => {
         let timeout: NodeJS.Timeout;

@@ -91,7 +91,14 @@ export const ReaderControls = () => {
                         step="50"
                         value={wpm}
                         onChange={(e) => setWpm(Number(e.target.value))}
-                        style={{ cursor: 'pointer', accentColor: 'currentColor', width: isVertical ? '100%' : '100px' }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        style={{ 
+                            cursor: 'pointer', 
+                            accentColor: 'currentColor', 
+                            width: isVertical ? '100%' : '100px',
+                            height: isVertical ? '24px' : 'auto'
+                        }}
                     />
                 </div>
 
@@ -107,7 +114,14 @@ export const ReaderControls = () => {
                             max={chapterTokens.length - 1}
                             value={wordIndex}
                             onChange={(e) => setWordIndex(Number(e.target.value))}
-                            style={{ cursor: 'pointer', accentColor: 'currentColor', width: isVertical ? '100%' : '150px' }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()}
+                            style={{ 
+                                cursor: 'pointer', 
+                                accentColor: 'currentColor', 
+                                width: isVertical ? '100%' : '150px',
+                                height: isVertical ? '24px' : 'auto'
+                            }}
                         />
                     </div>
                 )}
