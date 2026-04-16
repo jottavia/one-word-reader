@@ -6,6 +6,9 @@ import { PdfParser } from '../../services/pdfParser';
 import { processText, type Token } from '../../services/textProcessor';
 import { ResonatorOverlay } from '../Resonator/ResonatorOverlay';
 import { ReaderControls } from './ReaderControls';
+import json from '../../../package.json';
+
+const { version } = json;
 
 export const ReaderView = () => {
     const {
@@ -310,19 +313,22 @@ export const ReaderView = () => {
                 alignItems: 'center',
                 zIndex: 10
             }}>
-                <button
-                    onClick={() => window.location.reload()}
-                    style={{
-                        padding: '8px 16px',
-                        background: 'transparent',
-                        color: themeColor,
-                        border: `1px solid ${themeColor}`,
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                    }}
-                >
-                    Back to Library
-                </button>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                    <button
+                        onClick={() => window.location.reload()}
+                        style={{
+                            padding: '8px 16px',
+                            background: 'transparent',
+                            color: themeColor,
+                            border: `1px solid ${themeColor}`,
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Back to Library
+                    </button>
+                    <span style={{ fontSize: '0.65rem', opacity: 0.5, fontWeight: 'bold' }}>v{version}</span>
+                </div>
 
                 <ReaderControls />
             </div>
