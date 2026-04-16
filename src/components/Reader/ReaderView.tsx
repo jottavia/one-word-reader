@@ -255,6 +255,14 @@ export const ReaderView = () => {
         return unsub;
     }, [metadata, pdfPage, totalPages, setIsResonating]);
 
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     // Sync Meta Theme Color (for iOS status bar)
     useEffect(() => {
         let meta = document.querySelector('meta[name="theme-color"]');
@@ -309,8 +317,9 @@ export const ReaderView = () => {
                 background: themeBackground,
                 borderBottom: `1px solid ${themeColor}22`,
                 display: 'flex',
-                justifyContent: 'space-between',
+                justifyContent: isMobile ? 'flex-start' : 'space-between',
                 alignItems: 'center',
+                gap: '15px',
                 zIndex: 10
             }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
