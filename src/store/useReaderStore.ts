@@ -87,6 +87,8 @@ export const useReaderStore = create<ReaderState>()(persist((set) => ({
         themeBackground: state.themeBackground,
         fontSize: state.fontSize,
         fontFamily: state.fontFamily,
-        accelerationDuration: state.accelerationDuration
+        accelerationDuration: state.accelerationDuration,
+        wordIndex: state.wordIndex,
+        currentBookId: state.currentBookId
     })
 }));

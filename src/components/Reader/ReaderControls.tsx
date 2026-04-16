@@ -23,6 +23,8 @@ export const ReaderControls = () => {
         fontFamily, setFontFamily,
         themeColor, themeBackground, setTheme,
         accelerationDuration, setAccelerationDuration,
+        wordIndex, setWordIndex,
+        chapterTokens,
         resetSettings
     } = useReaderStore();
 
@@ -31,6 +33,13 @@ export const ReaderControls = () => {
     const [showSettings, setShowSettings] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    const closeAll = () => {
+        setIsMenuOpen(false);
+        setShowThemes(false);
+        setShowFonts(false);
+        setShowSettings(false);
+    };
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -73,7 +82,7 @@ export const ReaderControls = () => {
             <div style={groupStyle}>
                 {/* WPM Control */}
                 <div style={{ display: 'flex', flexDirection: isVertical ? 'column' : 'row', alignItems: isVertical ? 'flex-start' : 'center', gap: '8px', width: isVertical ? '100%' : 'auto' }}>
-                    <span style={{ fontWeight: 'bold' }}>{wpm} WPM</span>
+                    <span style={{ fontWeight: 'bold', minWidth: isVertical ? 'auto' : '70px' }}>{wpm} WPM</span>
                     <input
                         type="range"
                         min="200"
@@ -84,6 +93,23 @@ export const ReaderControls = () => {
                         style={{ cursor: 'pointer', accentColor: 'currentColor', width: isVertical ? '100%' : '100px' }}
                     />
                 </div>
+
+                {separator}
+
+                {/* Word Seeker (only if tokens exist) */}
+                {chapterTokens.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: isVertical ? 'column' : 'row', alignItems: isVertical ? 'flex-start' : 'center', gap: '8px', width: isVertical ? '100%' : 'auto' }}>
+                        <span style={{ fontWeight: 'bold', minWidth: isVertical ? 'auto' : '120px' }}>Word: {wordIndex}/{chapterTokens.length}</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max={chapterTokens.length - 1}
+                            value={wordIndex}
+                            onChange={(e) => setWordIndex(Number(e.target.value))}
+                            style={{ cursor: 'pointer', accentColor: 'currentColor', width: isVertical ? '100%' : '150px' }}
+                        />
+                    </div>
+                )}
 
                 {separator}
 
@@ -297,7 +323,7 @@ export const ReaderControls = () => {
                         zIndex: 3000,
                         display: 'flex',
                         justifyContent: 'flex-end'
-                    }} onClick={() => setIsMenuOpen(false)}>
+                    }} onClick={closeAll}>
                         <div style={{
                             width: '85%',
                             maxWidth: '320px',
@@ -314,7 +340,19 @@ export const ReaderControls = () => {
                         }} onClick={(e) => e.stopPropagation()}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Reader Settings</h2>
-                                <button onClick={() => setIsMenuOpen(false)} style={{ background: 'none', border: 'none', color: 'inherit' }}>
+                                <button 
+                                    onClick={closeAll}
+                                    onTouchStart={(e) => { e.preventDefault(); closeAll(); }}
+                                    style={{ 
+                                        background: 'none', border: 'none', color: 'inherit',
+                                        padding: '10px', margin: '-10px', // Bigger hit area
+                                        cursor: 'pointer',
+                                        transition: 'transform 0.1s',
+                                        display: 'flex', alignItems: 'center'
+                                    }}
+                                    onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.9)'}
+                                    onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                >
                                     <X size={28} />
                                 </button>
                             </div>
