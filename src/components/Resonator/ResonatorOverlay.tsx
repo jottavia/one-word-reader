@@ -172,10 +172,18 @@ export const ResonatorOverlay = () => {
                     setIsResonating(false);
                 }}
             >
-                <div style={{ fontSize: `${fontSize}rem`, fontFamily: fontFamily, display: 'flex', alignItems: 'baseline' }}>
-                    <span style={{ textAlign: 'right', flex: 1 }}>{leftPart}</span>
-                    <span style={{ color: '#e00', fontWeight: 'bold' }}>{orpChar}</span>
-                    <span style={{ textAlign: 'left', flex: 1 }}>{rightPart}</span>
+                <div style={{ 
+                    fontSize: `${fontSize}rem`, 
+                    fontFamily: fontFamily, 
+                    display: 'flex', 
+                    alignItems: 'baseline',
+                    width: '100%',
+                    justifyContent: 'center',
+                    whiteSpace: 'pre'
+                }}>
+                    <div style={{ textAlign: 'right', flex: 1, overflow: 'hidden' }}>{leftPart}</div>
+                    <div style={{ color: '#e00', fontWeight: 'bold', minWidth: '0.5ch', textAlign: 'center' }}>{orpChar}</div>
+                    <div style={{ textAlign: 'left', flex: 1, overflow: 'hidden' }}>{rightPart}</div>
                 </div>
 
                 <div style={{
