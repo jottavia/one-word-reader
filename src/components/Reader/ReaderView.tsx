@@ -73,12 +73,7 @@ export const ReaderView = () => {
                 // Contextual Delay Logic
                 let multiplier = 1;
                 if (punctuationDelay && wordIndex < chapterTokens.length) {
-                    const currentWord = chapterTokens[wordIndex].text;
-                    if (/[.?!]$/.test(currentWord)) {
-                        multiplier = 2.5; // End of sentence
-                    } else if (/[,;:]$/.test(currentWord)) {
-                        multiplier = 1.6; // Mid-sentence pause
-                    }
+                    multiplier = chapterTokens[wordIndex].delayMultiplier || 1;
                 }
 
                 const interval = baseInterval * multiplier;
