@@ -41,6 +41,58 @@ export const ReaderView = () => {
         });
     }, []);
 
+    // Resonance Engine (RSVP loop)
+    useEffect(() => {
+        let timeout: NodeJS.Timeout;
+
+        if (isResonating && chapterTokens.length > 0) {
+            const processStep = () => {
+                // Determine current speed (with acceleration)
+                const elapsed = (Date.now() - startTimeRef.current) / 1000;
+                const progress = Math.min(elapsed / accelerationDuration, 1);
+                const currentSpeed = 200 + (wpm - 200) * progress;
+
+                // Base interval in ms
+                const baseInterval = 60000 / currentSpeed;
+
+                // Contextual Delay Logic
+                let multiplier = 1;
+                if (punctuationDelay && wordIndex < chapterTokens.length) {
+                    const currentWord = chapterTokens[wordIndex].text;
+                    if (/[.?!]$/.test(currentWord)) {
+                        multiplier = 2.5; // End of sentence
+                    } else if (/[,;:]$/.test(currentWord)) {
+                        multiplier = 1.6; // Mid-sentence pause
+                    }
+                }
+
+                const interval = baseInterval * multiplier;
+
+                timeout = setTimeout(() => {
+                    if (resonanceDirection === 'forward') {
+                        if (wordIndex < chapterTokens.length - 1) {
+                            setWordIndex(wordIndex + 1);
+                            processStep();
+                        } else {
+                            setIsResonating(false);
+                        }
+                    } else {
+                        if (wordIndex > 0) {
+                            setWordIndex(wordIndex - 1);
+                            processStep();
+                        } else {
+                            setIsResonating(false);
+                        }
+                    }
+                }, interval);
+            };
+
+            processStep();
+        }
+
+        return () => clearTimeout(timeout);
+    }, [isResonating, wpm, chapterTokens, wordIndex, resonanceDirection, setWordIndex, setIsResonating, accelerationDuration, punctuationDelay]);
+
     // Theme synchronization
     useEffect(() => {
         if (renditionRef.current) {

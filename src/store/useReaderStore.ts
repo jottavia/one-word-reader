@@ -34,6 +34,9 @@ interface ReaderState {
 
     nextPageTrigger: number;
     triggerNextPage: () => void;
+
+    punctuationDelay: boolean;
+    setPunctuationDelay: (val: boolean) => void;
 }
 
 export const useReaderStore = create<ReaderState>()(persist((set) => ({
@@ -51,6 +54,9 @@ export const useReaderStore = create<ReaderState>()(persist((set) => ({
     resonanceDirection: 'forward',
     setResonanceDirection: (dir) => set({ resonanceDirection: dir }),
 
+    punctuationDelay: true,
+    setPunctuationDelay: (val) => set({ punctuationDelay: val }),
+
     // Theme settings
     themeColor: (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? '#eeeeee' : '#111111',
     themeBackground: (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? '#111111' : '#ffffff',
@@ -66,7 +72,8 @@ export const useReaderStore = create<ReaderState>()(persist((set) => ({
         fontFamily: 'Mulish, sans-serif',
         themeColor: (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? '#eeeeee' : '#111111',
         themeBackground: (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? '#111111' : '#ffffff',
-        accelerationDuration: 3
+        accelerationDuration: 3,
+        punctuationDelay: true
     }),
 
     // Auto-advance triggers
@@ -89,6 +96,7 @@ export const useReaderStore = create<ReaderState>()(persist((set) => ({
         fontFamily: state.fontFamily,
         accelerationDuration: state.accelerationDuration,
         wordIndex: state.wordIndex,
-        currentBookId: state.currentBookId
+        currentBookId: state.currentBookId,
+        punctuationDelay: state.punctuationDelay
     })
 }));

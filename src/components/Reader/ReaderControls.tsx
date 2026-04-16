@@ -25,6 +25,7 @@ export const ReaderControls = () => {
         accelerationDuration, setAccelerationDuration,
         wordIndex, setWordIndex,
         chapterTokens,
+        punctuationDelay, setPunctuationDelay,
         resetSettings
     } = useReaderStore();
 
@@ -273,6 +274,15 @@ export const ReaderControls = () => {
                         }}>
                             <div style={{ fontSize: '0.8rem', opacity: 0.8, borderBottom: '1px solid #555', paddingBottom: '5px' }}>
                                 <strong>System Settings</strong>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 5px' }}>
+                                <span style={{ fontSize: '0.8rem' }}>Punctuation Pause</span>
+                                <input
+                                    type="checkbox"
+                                    checked={punctuationDelay}
+                                    onChange={(e) => setPunctuationDelay(e.target.checked)}
+                                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'currentColor' }}
+                                />
                             </div>
                             <button
                                 onClick={() => {
