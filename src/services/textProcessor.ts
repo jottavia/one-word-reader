@@ -17,6 +17,15 @@ export const calculateORP = (word: string): number => {
 
 export type RawItem = { type: 'text' | 'image'; value: string; cfi?: string };
 
+const NOISE_PATTERNS = [
+    /^[0-9]+$/,          // Page numbers
+    /^[ivxlcdm]+$/i,     // Roman numerals (front matter)
+    /^ISBN \d+/i,        // ISBN metadata
+    /^Copyright/i,       // Copyright blurb
+    /^All rights reserved/i,
+    /^Page \d+/i         // Page footers
+];
+
 export const processText = (inputs: RawItem[] | string): Token[] => {
     let rawItems: RawItem[] = [];
 
@@ -40,9 +49,15 @@ export const processText = (inputs: RawItem[] | string): Token[] => {
         const clean = item.value.trim();
         if (!clean) return null;
 
+        // "Noise" filtering logic (skip metadata/page numbers)
+        if (clean.length < 30) { // Only filter short snippets to avoid collateral damage
+            const isNoise = NOISE_PATTERNS.some(pattern => pattern.test(clean));
+            if (isNoise) return null;
+        }
+
         let multiplier = 1.0;
         if (/[.!?]["']?$/.test(clean)) multiplier = 2.0; // End of sentence
-        else if (/[,;:]["']?$/.test(clean)) multiplier = 1.5; // Clause break
+        else if (/[,;:]["']?$/.test(clean)) multiplier = 1.6; // Clause break
         else if (clean.length > 7) multiplier = 1.2; // Long words need slightly more time
 
         return {
