@@ -18,7 +18,14 @@ export const ReaderView = () => {
         setChapterTokens,
         setResonanceDirection,
         themeColor,
-        themeBackground
+        themeBackground,
+        wordIndex,
+        setWordIndex,
+        chapterTokens,
+        resonanceDirection,
+        wpm,
+        accelerationDuration,
+        punctuationDelay
     } = useReaderStore();
 
     const [metadata, setMetadata] = useState<BookMetadata | null>(null);
@@ -29,6 +36,7 @@ export const ReaderView = () => {
     const epubParserRef = useRef<BookParser | null>(null);
     const pdfParserRef = useRef<PdfParser | null>(null);
     const renditionRef = useRef<any>(null);
+    const startTimeRef = useRef(Date.now());
 
     // Refs for event handlers to avoid re-binding
     const wordIndexRef = useRef(0);
@@ -40,6 +48,13 @@ export const ReaderView = () => {
             tokensRef.current = state.chapterTokens;
         });
     }, []);
+
+    // Reset start time when resonating starts
+    useEffect(() => {
+        if (isResonating) {
+            startTimeRef.current = Date.now();
+        }
+    }, [isResonating]);
 
     // Resonance Engine (RSVP loop)
     useEffect(() => {
@@ -75,6 +90,8 @@ export const ReaderView = () => {
                             processStep();
                         } else {
                             setIsResonating(false);
+                            // Trigger next page if at end of chapter
+                            useReaderStore.getState().triggerNextPage();
                         }
                     } else {
                         if (wordIndex > 0) {
