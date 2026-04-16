@@ -1,4 +1,4 @@
-# Resonance RSVP Reader
+# One Word Reader
 
 **Resonance** is a high-speed, "One Word" RSVP (Rapid Serial Visual Presentation) reader designed for focus and accessibility. It allows you to digest books and documents at speeds ranging from 200 to 1000 WPM, with specialized tuning for mobile and desktop interactions.
 
