@@ -1,22 +1,4 @@
 import { useReaderStore } from '../../store/useReaderStore';
-import { Palette, Type, Maximize, Check, RotateCcw, Settings } from 'lucide-react';
-import { useState } from 'react';
-
-const THEMES = [
-    { name: 'Light', color: '#111111', bg: '#ffffff' },
-    { name: 'Dark', color: '#eeeeee', bg: '#111111' },
-    { name: 'Sepia', color: '#5f4b32', bg: '#f6f1d1' },
-    { name: 'Matrix', color: '#00ff41', bg: '#0d0208' },
-];
-
-const FONTS = [
-    { name: 'Sans', value: 'Mulish, sans-serif' },
-    { name: 'Serif', value: 'Merriweather, serif' },
-    { name: 'Mono', value: 'monospace' },
-    { name: 'Dyslexic', value: 'OpenDyslexic, sans-serif' },
-];
-
-import { useReaderStore } from '../../store/useReaderStore';
 import { Palette, Type, Maximize, Check, RotateCcw, Settings, Menu, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
