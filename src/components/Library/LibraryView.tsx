@@ -23,7 +23,7 @@ export const LibraryView = () => {
     return (
         <div className="library-container" style={{ padding: '2rem', textAlign: 'center' }}>
             <h1>One Word Reader</h1>
-            <p>Upload an EPUB integration test</p>
+            <p>Upload an EPUB or PDF to start speed reading</p>
             <div style={{ marginTop: '2rem' }}>
                 <input
                     type="file"

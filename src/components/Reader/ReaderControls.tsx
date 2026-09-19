@@ -16,7 +16,33 @@ const FONTS = [
     { name: 'Dyslexic', value: 'OpenDyslexic, sans-serif' },
 ];
 
-export const ReaderControls = () => {
+interface ControlGroupsProps {
+    isVertical?: boolean;
+    showThemes: boolean;
+    setShowThemes: (v: boolean | ((p: boolean) => boolean)) => void;
+    showFonts: boolean;
+    setShowFonts: (v: boolean | ((p: boolean) => boolean)) => void;
+    showSettings: boolean;
+    setShowSettings: (v: boolean | ((p: boolean) => boolean)) => void;
+    onFullscreen: () => void;
+}
+
+const stopHoldToRead = (e: React.SyntheticEvent) => {
+    // Prevent the parent deadman-switch (mousedown/touchstart) from starting resonance
+    // while interacting with controls. PointerDown alone does not stop mousedown bubbling.
+    e.stopPropagation();
+};
+
+const ControlGroups = ({
+    isVertical = false,
+    showThemes,
+    setShowThemes,
+    showFonts,
+    setShowFonts,
+    showSettings,
+    setShowSettings,
+    onFullscreen,
+}: ControlGroupsProps) => {
     const {
         wpm, setWpm,
         fontSize, setFontSize,
@@ -29,11 +55,270 @@ export const ReaderControls = () => {
         resetSettings
     } = useReaderStore();
 
+    const groupStyle: React.CSSProperties = {
+        display: 'flex',
+        flexDirection: isVertical ? 'column' : 'row',
+        alignItems: isVertical ? 'flex-start' : 'center',
+        gap: isVertical ? '20px' : '15px',
+        width: isVertical ? '100%' : 'auto'
+    };
+
+    const separator = !isVertical && <div style={{ width: '1px', height: '20px', background: 'currentColor', opacity: 0.3 }} />;
+
+    return (
+        <div style={groupStyle}>
+            {/* WPM Control */}
+            <div style={{ display: 'flex', flexDirection: isVertical ? 'column' : 'row', alignItems: isVertical ? 'flex-start' : 'center', gap: '8px', width: isVertical ? '100%' : 'auto' }}>
+                <span style={{ fontWeight: 'bold', minWidth: isVertical ? 'auto' : '70px' }}>{wpm} WPM</span>
+                <input
+                    type="range"
+                    min="200"
+                    max="1000"
+                    step="50"
+                    value={wpm}
+                    onChange={(e) => setWpm(Number(e.target.value))}
+                    onPointerDown={stopHoldToRead}
+                    onMouseDown={stopHoldToRead}
+                    onTouchStart={stopHoldToRead}
+                    style={{
+                        cursor: 'pointer',
+                        accentColor: 'currentColor',
+                        width: isVertical ? '100%' : '100px',
+                        height: isVertical ? '24px' : 'auto'
+                    }}
+                />
+            </div>
+
+            {separator}
+
+            {/* Word Seeker (only if tokens exist) */}
+            {chapterTokens.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: isVertical ? 'column' : 'row', alignItems: isVertical ? 'flex-start' : 'center', gap: '8px', width: isVertical ? '100%' : 'auto' }}>
+                    <span style={{ fontWeight: 'bold', minWidth: isVertical ? 'auto' : '120px' }}>Word: {wordIndex}/{chapterTokens.length}</span>
+                    <input
+                        type="range"
+                        min="0"
+                        max={chapterTokens.length - 1}
+                        value={wordIndex}
+                        onChange={(e) => setWordIndex(Number(e.target.value))}
+                        onPointerDown={stopHoldToRead}
+                        onMouseDown={stopHoldToRead}
+                        onTouchStart={stopHoldToRead}
+                        style={{
+                            cursor: 'pointer',
+                            accentColor: 'currentColor',
+                            width: isVertical ? '100%' : '150px',
+                            height: isVertical ? '24px' : 'auto'
+                        }}
+                    />
+                </div>
+            )}
+
+            {separator}
+
+            {/* Acceleration Control */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem' }} title="Ramp-up duration (seconds)">
+                <span>Warmup:</span>
+                <input
+                    type="number"
+                    min="0"
+                    max="10"
+                    value={accelerationDuration}
+                    onChange={(e) => setAccelerationDuration(Number(e.target.value))}
+                    onPointerDown={stopHoldToRead}
+                    onMouseDown={stopHoldToRead}
+                    onTouchStart={stopHoldToRead}
+                    style={{
+                        width: '40px',
+                        background: 'transparent',
+                        color: 'inherit',
+                        border: '1px solid currentColor',
+                        borderRadius: '4px',
+                        padding: '2px',
+                        textAlign: 'center'
+                    }}
+                />
+                <span>s</span>
+            </div>
+
+            {separator}
+
+            {/* Font Control */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Type size={16} style={{ cursor: 'pointer' }} onClick={() => setShowFonts(!showFonts)} />
+                    {isVertical && <span onClick={() => setShowFonts(!showFonts)} style={{ cursor: 'pointer' }}>Typeface & Size</span>}
+                </div>
+
+                {showFonts && (
+                    <div style={{
+                        position: isVertical ? 'static' : 'absolute',
+                        top: isVertical ? '0' : '120%',
+                        left: isVertical ? '0' : '-50%',
+                        background: themeBackground === '#ffffff' ? '#fff' : '#222',
+                        border: '1px solid #777',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        minWidth: '200px',
+                        zIndex: 4000
+                    }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '0.7rem', opacity: 0.7, fontWeight: 'bold' }}>TYPEFACE</span>
+                            {FONTS.map(f => (
+                                <button
+                                    key={f.name}
+                                    onClick={() => { setFontFamily(f.value); setShowFonts(false); }}
+                                    style={{
+                                        textAlign: 'left', background: 'none', border: 'none', padding: '6px', cursor: 'pointer', color: 'inherit',
+                                        fontFamily: f.value, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                    }}
+                                >
+                                    {f.name}
+                                    {fontFamily === f.value && <Check size={14} />}
+                                </button>
+                            ))}
+                        </div>
+                        <div style={{ height: '1px', background: 'currentColor', opacity: 0.2 }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '0.7rem', opacity: 0.7, fontWeight: 'bold' }}>SIZE ({fontSize})</span>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <button onClick={() => setFontSize(Math.max(2, fontSize - 0.5))} style={{ cursor: 'pointer', background: 'none', border: '1px solid currentColor', borderRadius: '4px', color: 'inherit', padding: '5px 15px' }}>-</button>
+                                <button onClick={() => setFontSize(Math.min(10, fontSize + 0.5))} style={{ cursor: 'pointer', background: 'none', border: '1px solid currentColor', borderRadius: '4px', color: 'inherit', padding: '5px 15px' }}>+</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {separator}
+
+            {/* Fullscreen - only on large screens usually but kept here */}
+            {!isVertical && (
+                <button onClick={onFullscreen} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
+                    <Maximize size={18} />
+                </button>
+            )}
+
+            {separator}
+
+            {/* Theme Toggle */}
+            <div style={{ position: 'relative' }}>
+                <button
+                    onClick={() => setShowThemes(!showThemes)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}
+                >
+                    <Palette size={18} />
+                    {isVertical && <span>Themes</span>}
+                </button>
+
+                {showThemes && (
+                    <div style={{
+                        position: isVertical ? 'static' : 'absolute',
+                        top: isVertical ? '0' : '120%',
+                        right: 0,
+                        background: themeBackground === '#ffffff' ? '#fff' : '#222',
+                        border: '1px solid #777',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        minWidth: isVertical ? '100%' : '150px',
+                        zIndex: 4000
+                    }}>
+                        {THEMES.map(t => (
+                            <button
+                                key={t.name}
+                                onClick={() => { setTheme(t.color, t.bg); setShowThemes(false); }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '8px', padding: '10px',
+                                    border: '1px solid #ccc', borderRadius: '4px', background: t.bg,
+                                    color: t.color, cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem'
+                                }}
+                            >
+                                {t.name}
+                                {themeColor === t.color && themeBackground === t.bg && <Check size={14} />}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {separator}
+
+            {/* Settings/Reset Menu */}
+            <div style={{ position: 'relative' }}>
+                <button
+                    onClick={() => setShowSettings(!showSettings)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}
+                >
+                    <Settings size={18} />
+                    {isVertical && <span>Settings</span>}
+                </button>
+
+                {showSettings && (
+                    <div style={{
+                        position: isVertical ? 'static' : 'absolute',
+                        top: isVertical ? '0' : '120%',
+                        right: 0,
+                        background: themeBackground === '#ffffff' ? '#fff' : '#222',
+                        border: '1px solid #777',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        minWidth: '200px',
+                        zIndex: 4000
+                    }}>
+                        <div style={{ fontSize: '0.8rem', opacity: 0.8, borderBottom: '1px solid #555', paddingBottom: '5px' }}>
+                            <strong>System Settings</strong>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 5px' }}>
+                            <span style={{ fontSize: '0.8rem' }}>Punctuation Pause</span>
+                            <input
+                                type="checkbox"
+                                checked={punctuationDelay}
+                                onChange={(e) => setPunctuationDelay(e.target.checked)}
+                                style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'currentColor' }}
+                            />
+                        </div>
+                        <button
+                            onClick={() => {
+                                if (window.confirm('Reset all settings to default?')) {
+                                    resetSettings();
+                                    setShowSettings(false);
+                                }
+                            }}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '8px', padding: '8px',
+                                background: '#d32f2f', color: 'white', border: 'none', borderRadius: '4px',
+                                cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem'
+                            }}
+                        >
+                            <RotateCcw size={14} /> Reset Defaults
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export const ReaderControls = () => {
+    const { themeColor, themeBackground } = useReaderStore();
+
     const [showThemes, setShowThemes] = useState(false);
     const [showFonts, setShowFonts] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth < 768);
 
     const closeAll = () => {
         setIsMenuOpen(false);
@@ -50,9 +335,13 @@ export const ReaderControls = () => {
 
     const handleFullscreen = () => {
         if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen();
+            void document.documentElement.requestFullscreen().catch(() => {
+                // Fullscreen rejected (e.g. permissions) — stay in normal mode.
+            });
         } else {
-            document.exitFullscreen();
+            void document.exitFullscreen().catch(() => {
+                // ignore
+            });
         }
     };
 
@@ -68,256 +357,14 @@ export const ReaderControls = () => {
         gap: '15px'
     };
 
-    const ControlGroups = ({ isVertical = false }: { isVertical?: boolean }) => {
-        const groupStyle: React.CSSProperties = {
-            display: 'flex',
-            flexDirection: isVertical ? 'column' : 'row',
-            alignItems: isVertical ? 'flex-start' : 'center',
-            gap: isVertical ? '20px' : '15px',
-            width: isVertical ? '100%' : 'auto'
-        };
-
-        const separator = !isVertical && <div style={{ width: '1px', height: '20px', background: 'currentColor', opacity: 0.3 }} />;
-
-        return (
-            <div style={groupStyle}>
-                {/* WPM Control */}
-                <div style={{ display: 'flex', flexDirection: isVertical ? 'column' : 'row', alignItems: isVertical ? 'flex-start' : 'center', gap: '8px', width: isVertical ? '100%' : 'auto' }}>
-                    <span style={{ fontWeight: 'bold', minWidth: isVertical ? 'auto' : '70px' }}>{wpm} WPM</span>
-                    <input
-                        type="range"
-                        min="200"
-                        max="1000"
-                        step="50"
-                        value={wpm}
-                        onChange={(e) => setWpm(Number(e.target.value))}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onTouchStart={(e) => e.stopPropagation()}
-                        style={{ 
-                            cursor: 'pointer', 
-                            accentColor: 'currentColor', 
-                            width: isVertical ? '100%' : '100px',
-                            height: isVertical ? '24px' : 'auto'
-                        }}
-                    />
-                </div>
-
-                {separator}
-
-                {/* Word Seeker (only if tokens exist) */}
-                {chapterTokens.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: isVertical ? 'column' : 'row', alignItems: isVertical ? 'flex-start' : 'center', gap: '8px', width: isVertical ? '100%' : 'auto' }}>
-                        <span style={{ fontWeight: 'bold', minWidth: isVertical ? 'auto' : '120px' }}>Word: {wordIndex}/{chapterTokens.length}</span>
-                        <input
-                            type="range"
-                            min="0"
-                            max={chapterTokens.length - 1}
-                            value={wordIndex}
-                            onChange={(e) => setWordIndex(Number(e.target.value))}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onTouchStart={(e) => e.stopPropagation()}
-                            style={{ 
-                                cursor: 'pointer', 
-                                accentColor: 'currentColor', 
-                                width: isVertical ? '100%' : '150px',
-                                height: isVertical ? '24px' : 'auto'
-                            }}
-                        />
-                    </div>
-                )}
-
-                {separator}
-
-                {/* Acceleration Control */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem' }} title="Ramp-up duration (seconds)">
-                    <span>Warmup:</span>
-                    <input
-                        type="number"
-                        min="0"
-                        max="10"
-                        value={accelerationDuration}
-                        onChange={(e) => setAccelerationDuration(Number(e.target.value))}
-                        style={{
-                            width: '40px',
-                            background: 'transparent',
-                            color: 'inherit',
-                            border: '1px solid currentColor',
-                            borderRadius: '4px',
-                            padding: '2px',
-                            textAlign: 'center'
-                        }}
-                    />
-                    <span>s</span>
-                </div>
-
-                {separator}
-
-                {/* Font Control */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', position: 'relative' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <Type size={16} style={{ cursor: 'pointer' }} onClick={() => setShowFonts(!showFonts)} />
-                        {isVertical && <span onClick={() => setShowFonts(!showFonts)} style={{ cursor: 'pointer' }}>Typeface & Size</span>}
-                    </div>
-
-                    {showFonts && (
-                        <div style={{
-                            position: isVertical ? 'static' : 'absolute',
-                            top: isVertical ? '0' : '120%',
-                            left: isVertical ? '0' : '-50%',
-                            background: themeBackground === '#ffffff' ? '#fff' : '#222',
-                            border: '1px solid #777',
-                            borderRadius: '8px',
-                            padding: '12px',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '8px',
-                            minWidth: '200px',
-                            zIndex: 4000
-                        }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <span style={{ fontSize: '0.7rem', opacity: 0.7, fontWeight: 'bold' }}>TYPEFACE</span>
-                                {FONTS.map(f => (
-                                    <button
-                                        key={f.name}
-                                        onClick={() => { setFontFamily(f.value); setShowFonts(false); }}
-                                        style={{
-                                            textAlign: 'left', background: 'none', border: 'none', padding: '6px', cursor: 'pointer', color: 'inherit',
-                                            fontFamily: f.value, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                                        }}
-                                    >
-                                        {f.name}
-                                        {fontFamily === f.value && <Check size={14} />}
-                                    </button>
-                                ))}
-                            </div>
-                            <div style={{ height: '1px', background: 'currentColor', opacity: 0.2 }} />
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <span style={{ fontSize: '0.7rem', opacity: 0.7, fontWeight: 'bold' }}>SIZE ({fontSize})</span>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <button onClick={() => setFontSize(Math.max(2, fontSize - 0.5))} style={{ cursor: 'pointer', background: 'none', border: '1px solid currentColor', borderRadius: '4px', color: 'inherit', padding: '5px 15px' }}>-</button>
-                                    <button onClick={() => setFontSize(Math.min(10, fontSize + 0.5))} style={{ cursor: 'pointer', background: 'none', border: '1px solid currentColor', borderRadius: '4px', color: 'inherit', padding: '5px 15px' }}>+</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {separator}
-
-                {/* Fullscreen - only on large screens usually but kept here */}
-                {!isVertical && (
-                    <button onClick={handleFullscreen} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
-                        <Maximize size={18} />
-                    </button>
-                )}
-
-                {separator}
-
-                {/* Theme Toggle */}
-                <div style={{ position: 'relative' }}>
-                    <button
-                        onClick={() => setShowThemes(!showThemes)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}
-                    >
-                        <Palette size={18} />
-                        {isVertical && <span>Themes</span>}
-                    </button>
-
-                    {showThemes && (
-                        <div style={{
-                            position: isVertical ? 'static' : 'absolute',
-                            top: isVertical ? '0' : '120%',
-                            right: 0,
-                            background: themeBackground === '#ffffff' ? '#fff' : '#222',
-                            border: '1px solid #777',
-                            borderRadius: '8px',
-                            padding: '12px',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '8px',
-                            minWidth: isVertical ? '100%' : '150px',
-                            zIndex: 4000
-                        }}>
-                            {THEMES.map(t => (
-                                <button
-                                    key={t.name}
-                                    onClick={() => { setTheme(t.color, t.bg); setShowThemes(false); }}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: '8px', padding: '10px',
-                                        border: '1px solid #ccc', borderRadius: '4px', background: t.bg,
-                                        color: t.color, cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem'
-                                    }}
-                                >
-                                    {t.name}
-                                    {themeColor === t.color && themeBackground === t.bg && <Check size={14} />}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {separator}
-
-                {/* Settings/Reset Menu */}
-                <div style={{ position: 'relative' }}>
-                    <button
-                        onClick={() => setShowSettings(!showSettings)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}
-                    >
-                        <Settings size={18} />
-                        {isVertical && <span>Settings</span>}
-                    </button>
-
-                    {showSettings && (
-                        <div style={{
-                            position: isVertical ? 'static' : 'absolute',
-                            top: isVertical ? '0' : '120%',
-                            right: 0,
-                            background: themeBackground === '#ffffff' ? '#fff' : '#222',
-                            border: '1px solid #777',
-                            borderRadius: '8px',
-                            padding: '12px',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '10px',
-                            minWidth: '200px',
-                            zIndex: 4000
-                        }}>
-                            <div style={{ fontSize: '0.8rem', opacity: 0.8, borderBottom: '1px solid #555', paddingBottom: '5px' }}>
-                                <strong>System Settings</strong>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 5px' }}>
-                                <span style={{ fontSize: '0.8rem' }}>Punctuation Pause</span>
-                                <input
-                                    type="checkbox"
-                                    checked={punctuationDelay}
-                                    onChange={(e) => setPunctuationDelay(e.target.checked)}
-                                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'currentColor' }}
-                                />
-                            </div>
-                            <button
-                                onClick={() => {
-                                    if (window.confirm('Reset all settings to default?')) {
-                                        resetSettings();
-                                        setShowSettings(false);
-                                    }
-                                }}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: '8px', padding: '8px',
-                                    background: '#d32f2f', color: 'white', border: 'none', borderRadius: '4px',
-                                    cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem'
-                                }}
-                            >
-                                <RotateCcw size={14} /> Reset Defaults
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
+    const groupsProps = {
+        showThemes,
+        setShowThemes,
+        showFonts,
+        setShowFonts,
+        showSettings,
+        setShowSettings,
+        onFullscreen: handleFullscreen,
     };
 
     if (isMobile) {
@@ -364,24 +411,24 @@ export const ReaderControls = () => {
                         }} onClick={(e) => e.stopPropagation()}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Reader Settings</h2>
-                                <button 
+                                <button
                                     onClick={closeAll}
                                     onTouchStart={(e) => { e.preventDefault(); closeAll(); }}
-                                    style={{ 
+                                    style={{
                                         background: 'none', border: 'none', color: 'inherit',
-                                        padding: '10px', margin: '-10px', // Bigger hit area
+                                        padding: '10px', margin: '-10px',
                                         cursor: 'pointer',
                                         transition: 'transform 0.1s',
                                         display: 'flex', alignItems: 'center'
                                     }}
-                                    onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.9)'}
-                                    onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                    onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.9)'; }}
+                                    onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
                                 >
                                     <X size={28} />
                                 </button>
                             </div>
 
-                            <ControlGroups isVertical />
+                            <ControlGroups isVertical {...groupsProps} />
                         </div>
                     </div>
                 )}
@@ -391,7 +438,7 @@ export const ReaderControls = () => {
 
     return (
         <div style={containerStyle}>
-            <ControlGroups />
+            <ControlGroups {...groupsProps} />
         </div>
     );
 };

@@ -10,22 +10,36 @@ import json from '../../../package.json';
 
 const { version } = json;
 
+interface RenditionLike {
+    themes: {
+        register: (...args: unknown[]) => void;
+        select: (...args: unknown[]) => void;
+        default: (...args: unknown[]) => void;
+    };
+    display: (...args: unknown[]) => Promise<unknown>;
+    next: () => Promise<unknown>;
+    on: (...args: unknown[]) => void;
+    off: (...args: unknown[]) => void;
+    destroy: () => void;
+    annotations: {
+        add: (...args: unknown[]) => void;
+        remove: (...args: unknown[]) => void;
+    };
+}
+
+interface RelocatedLocation {
+    start: { cfi: string; index: number };
+}
+
 export const ReaderView = () => {
     const {
         currentBookId,
+        setCurrentBookId,
         isResonating,
         setIsResonating,
-        setChapterTokens,
         setResonanceDirection,
         themeColor,
         themeBackground,
-        wordIndex,
-        setWordIndex,
-        chapterTokens,
-        resonanceDirection,
-        wpm,
-        accelerationDuration,
-        punctuationDelay
     } = useReaderStore();
 
     const [metadata, setMetadata] = useState<BookMetadata | null>(null);
@@ -35,26 +49,18 @@ export const ReaderView = () => {
     const viewerRef = useRef<HTMLDivElement>(null);
     const epubParserRef = useRef<BookParser | null>(null);
     const pdfParserRef = useRef<PdfParser | null>(null);
-    const renditionRef = useRef<any>(null);
-    const startTimeRef = useRef(Date.now());
+    const renditionRef = useRef<RenditionLike | null>(null);
 
     // Refs for event handlers to avoid re-binding
     const wordIndexRef = useRef(0);
     const tokensRef = useRef<Token[]>([]);
 
     useEffect(() => {
-        useReaderStore.subscribe(state => {
+        return useReaderStore.subscribe(state => {
             wordIndexRef.current = state.wordIndex;
             tokensRef.current = state.chapterTokens;
         });
     }, []);
-
-    // Reset start time when resonating starts
-    useEffect(() => {
-        if (isResonating) {
-            startTimeRef.current = Date.now();
-        }
-    }, [isResonating]);
 
     // Stop reading when window loses focus (backgrounded)
     useEffect(() => {
@@ -62,66 +68,21 @@ export const ReaderView = () => {
             console.log('[ReaderView] Window blurred or hidden - forcing stop');
             setIsResonating(false);
         };
+        const handleVisibility = () => {
+            if (document.hidden) handleStop();
+        };
         window.addEventListener('blur', handleStop);
         window.addEventListener('contextmenu', handleStop); // Prevents hold-triggering context menu stuck
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) handleStop();
-        });
+        document.addEventListener('visibilitychange', handleVisibility);
         return () => {
             window.removeEventListener('blur', handleStop);
             window.removeEventListener('contextmenu', handleStop);
-            document.removeEventListener('visibilitychange', handleStop);
+            document.removeEventListener('visibilitychange', handleVisibility);
         };
     }, [setIsResonating]);
 
-    // Resonance Engine (RSVP loop)
-    useEffect(() => {
-        let timeout: NodeJS.Timeout;
-
-        if (isResonating && chapterTokens.length > 0) {
-            const processStep = () => {
-                // Determine current speed (with acceleration)
-                const elapsed = (Date.now() - startTimeRef.current) / 1000;
-                const progress = Math.min(elapsed / accelerationDuration, 1);
-                const currentSpeed = 200 + (wpm - 200) * progress;
-
-                // Base interval in ms
-                const baseInterval = 60000 / currentSpeed;
-
-                // Contextual Delay Logic
-                let multiplier = 1;
-                if (punctuationDelay && wordIndex < chapterTokens.length) {
-                    multiplier = chapterTokens[wordIndex].delayMultiplier || 1;
-                }
-
-                const interval = baseInterval * multiplier;
-
-                timeout = setTimeout(() => {
-                    if (resonanceDirection === 'forward') {
-                        if (wordIndex < chapterTokens.length - 1) {
-                            setWordIndex(wordIndex + 1);
-                            processStep();
-                        } else {
-                            setIsResonating(false);
-                            // Trigger next page if at end of chapter
-                            useReaderStore.getState().triggerNextPage();
-                        }
-                    } else {
-                        if (wordIndex > 0) {
-                            setWordIndex(wordIndex - 1);
-                            processStep();
-                        } else {
-                            setIsResonating(false);
-                        }
-                    }
-                }, interval);
-            };
-
-            processStep();
-        }
-
-        return () => clearTimeout(timeout);
-    }, [isResonating, wpm, chapterTokens, wordIndex, resonanceDirection, setWordIndex, setIsResonating, accelerationDuration, punctuationDelay]);
+    // NOTE: The RSVP timing loop lives solely in ResonatorOverlay to avoid
+    // double-advancing wordIndex. This view only loads books and handles nav.
 
     // Theme synchronization
     useEffect(() => {
@@ -134,7 +95,16 @@ export const ReaderView = () => {
     }, [themeColor, themeBackground]);
 
     // Keyboard controls
+    const isEditableTarget = (e: KeyboardEvent): boolean => {
+        const el = e.target as HTMLElement | null;
+        if (!el || typeof (el as HTMLElement).tagName !== 'string') return false;
+        const tag = (el as HTMLElement).tagName.toUpperCase();
+        return tag === 'INPUT' || tag === 'TEXTAREA' || (el as HTMLElement).isContentEditable;
+    };
+
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
+        if (isEditableTarget(e)) return;
+        if (e.repeat) return;
         if (e.code === 'Space') {
             e.preventDefault();
             // Start reading forward
@@ -154,6 +124,7 @@ export const ReaderView = () => {
     }, [setIsResonating]);
 
     const handleKeyUp = useCallback((e: KeyboardEvent) => {
+        if (isEditableTarget(e)) return;
         if (e.code === 'Space' || e.code === 'ArrowRight' || e.code === 'ArrowLeft') {
             e.preventDefault();
             setIsResonating(false);
@@ -174,7 +145,7 @@ export const ReaderView = () => {
                     });
 
                     setTimeout(() => {
-                        renditionRef.current.annotations.remove(currentToken.cfi, 'highlight');
+                        renditionRef.current?.annotations.remove(currentToken.cfi, 'highlight');
                     }, 2000);
                 }
             } else if (metadata?.type === 'pdf') {
@@ -182,7 +153,7 @@ export const ReaderView = () => {
                 // tokensRef has pseudo-CFIs like "pdf:0:5"
                 if (currentToken && currentToken.cfi && currentToken.cfi.startsWith('pdf:')) {
                     const parts = currentToken.cfi.split(':');
-                    const pageIndex = parseInt(parts[1]);
+                    const pageIndex = parseInt(parts[1] ?? '0', 10);
                     if (!isNaN(pageIndex)) setPdfPage(pageIndex);
                 }
             }
@@ -213,13 +184,22 @@ export const ReaderView = () => {
     useEffect(() => {
         if (!currentBookId || !viewerRef.current || !metadata) return;
 
+        let cancelled = false;
+        const container = viewerRef.current;
+        // Snapshot theme at open time; live theme changes are handled by the sync effect above.
+        const { themeColor: initialColor, themeBackground: initialBg } = useReaderStore.getState();
+
         const initBook = async () => {
             const bookData = await loadBook(currentBookId);
-            if (!bookData) return;
+            if (!bookData || cancelled) return;
 
             if (metadata.type === 'pdf') {
-                const parser = new PdfParser(bookData as ArrayBuffer);
+                const parser = new PdfParser(bookData);
                 await parser.init();
+                if (cancelled) {
+                    parser.destroy();
+                    return;
+                }
                 pdfParserRef.current = parser;
                 setTotalPages(parser.pageCount);
 
@@ -227,44 +207,49 @@ export const ReaderView = () => {
                 const savedCfi = await loadProgress(currentBookId);
                 let startPage = 0;
                 if (savedCfi && savedCfi.startsWith('pdf:')) {
-                    startPage = parseInt(savedCfi.split(':')[1]) || 0;
+                    startPage = parseInt(savedCfi.split(':')[1] ?? '0', 10) || 0;
                 }
-                setPdfPage(startPage);
+                if (!cancelled) setPdfPage(startPage);
 
                 // Render will trigger via pdfPage effect
             } else {
                 // EPUB
-                const parser = new BookParser(bookData as ArrayBuffer);
+                const parser = new BookParser(bookData);
                 epubParserRef.current = parser;
 
-                const rendition = parser.book.renderTo(viewerRef.current!, {
+                const rendition = parser.book.renderTo(container, {
                     width: '100%',
                     height: '100%',
                     flow: 'scrolled-doc'
-                });
+                }) as unknown as RenditionLike;
                 renditionRef.current = rendition;
 
                 // Register Themes
                 rendition.themes.register('custom', {
-                    body: { color: themeColor, background: themeBackground }
+                    body: { color: initialColor, background: initialBg }
                 });
                 rendition.themes.select('custom');
 
-                // Listen for chapter changes
-                rendition.on('relocated', async (location: any) => {
+                const handleRelocated = (location: RelocatedLocation) => {
                     const cfi = location.start.cfi;
-                    if (currentBookId) saveProgress(currentBookId, cfi);
+                    if (currentBookId) void saveProgress(currentBookId, cfi);
 
                     const index = location.start.index;
 
                     // Extract and tokenize text for the current chapter
-                    const data = await parser.getChapterData(index);
-                    const tokens = processText(data);
-                    setChapterTokens(tokens);
-                });
+                    void parser.getChapterData(index).then((data) => {
+                        if (cancelled) return;
+                        const tokens = processText(data);
+                        useReaderStore.getState().setChapterTokens(tokens);
+                    });
+                };
+
+                // Listen for chapter changes
+                rendition.on('relocated', handleRelocated);
 
                 // Restore progress
                 const savedCfi = await loadProgress(currentBookId);
+                if (cancelled) return;
                 if (savedCfi) {
                     await rendition.display(savedCfi);
                 } else {
@@ -273,57 +258,80 @@ export const ReaderView = () => {
             }
         };
 
-        // Cleanup
-        if (epubParserRef.current) epubParserRef.current.book.destroy();
-        if (pdfParserRef.current) pdfParserRef.current.destroy();
-        viewerRef.current.innerHTML = ''; // Clear container
+        container.innerHTML = ''; // Clear container
 
-        initBook();
+        void initBook();
 
         return () => {
-            if (epubParserRef.current) epubParserRef.current.book.destroy();
-            if (pdfParserRef.current) pdfParserRef.current.destroy();
+            cancelled = true;
+            if (renditionRef.current) {
+                try {
+                    renditionRef.current.destroy();
+                } catch {
+                    // ignore teardown errors
+                }
+                renditionRef.current = null;
+            }
+            if (epubParserRef.current) {
+                epubParserRef.current.book.destroy();
+                epubParserRef.current = null;
+            }
+            if (pdfParserRef.current) {
+                pdfParserRef.current.destroy();
+                pdfParserRef.current = null;
+            }
         };
     }, [currentBookId, metadata]); // Re-run if ID or metadata changes
 
     // PDF Page Change Effect
     useEffect(() => {
-        if (metadata?.type === 'pdf' && pdfParserRef.current && viewerRef.current) {
-            const renderPdf = async () => {
-                await pdfParserRef.current!.renderTo(viewerRef.current!, pdfPage);
-                const tokens = await pdfParserRef.current!.getPageData(pdfPage);
-                setChapterTokens(processText(tokens));
+        if (metadata?.type !== 'pdf' || !pdfParserRef.current || !viewerRef.current || !currentBookId) return;
+        const parser = pdfParserRef.current;
+        const container = viewerRef.current;
+        const bookId = currentBookId;
+        const pageToRender = pdfPage;
+        let cancelled = false;
+        const renderPdf = async () => {
+            try {
+                await parser.renderTo(container, pageToRender);
+                if (cancelled) return;
+                const tokens = await parser.getPageData(pageToRender);
+                if (cancelled) return;
+                useReaderStore.getState().setChapterTokens(processText(tokens));
+                useReaderStore.getState().setWordIndex(0);
 
                 // Save progress
-                const cfi = `pdf:${pdfPage}:0`;
-                saveProgress(currentBookId!, cfi);
-            };
-            renderPdf();
-        }
+                const cfi = `pdf:${pageToRender}:0`;
+                await saveProgress(bookId, cfi);
+            } catch (error) {
+                console.error('[ReaderView] Failed to render PDF page', error);
+            }
+        };
+        void renderPdf();
+        return () => {
+            cancelled = true;
+        };
     }, [pdfPage, metadata, currentBookId]);
 
     // Handle Auto-Advance Trigger
     useEffect(() => {
         const handleNextPage = async () => {
+            const state = useReaderStore.getState();
             // Logic to move to next page
             if (metadata?.type === 'pdf') {
                 if (pdfPage < totalPages - 1) {
-                    setPdfPage(p => p + 1);
-                    // The pdfPage effect will handle loading tokens
-                    // We need to reset wordIndex to 0. 
-                    // IMPORTANT: setPdfPage effect runs async, so we might want to ensure we reset wordIndex
-                    // in that effect or here. 
-                    useReaderStore.getState().setWordIndex(0);
+                    setPdfPage(pdfPage + 1);
+                    // The pdfPage effect reloads tokens and resets wordIndex.
                 } else {
                     // End of book
-                    setIsResonating(false);
+                    state.setIsResonating(false);
                 }
             } else {
                 // EPUB
                 if (renditionRef.current) {
                     await renditionRef.current.next();
                     // Relocated event handles token loading
-                    useReaderStore.getState().setWordIndex(0);
+                    state.setWordIndex(0);
                 }
             }
         };
@@ -331,13 +339,13 @@ export const ReaderView = () => {
         // We only run this if trigger > 0 to avoid initial run
         const unsub = useReaderStore.subscribe((state, prevState) => {
             if (state.nextPageTrigger > prevState.nextPageTrigger) {
-                handleNextPage();
+                void handleNextPage();
             }
         });
         return unsub;
-    }, [metadata, pdfPage, totalPages, setIsResonating]);
+    }, [metadata, pdfPage, totalPages]);
 
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth < 768);
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -347,10 +355,10 @@ export const ReaderView = () => {
 
     // Sync Meta Theme Color (for iOS status bar)
     useEffect(() => {
-        let meta = document.querySelector('meta[name="theme-color"]');
+        let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
         if (!meta) {
             meta = document.createElement('meta');
-            (meta as any).name = 'theme-color';
+            meta.name = 'theme-color';
             document.head.appendChild(meta);
         }
         meta.setAttribute('content', themeBackground);
@@ -390,7 +398,7 @@ export const ReaderView = () => {
                 userSelect: 'none',
                 WebkitUserSelect: 'none', // iOS Support
                 WebkitTouchCallout: 'none', // iOS Support
-                touchAction: 'none'
+                touchAction: 'pan-y'
             }}>
             <ResonatorOverlay />
 
@@ -406,7 +414,10 @@ export const ReaderView = () => {
             }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                     <button
-                        onClick={() => window.location.reload()}
+                        onClick={() => {
+                            setIsResonating(false);
+                            setCurrentBookId(null);
+                        }}
                         style={{
                             padding: '8px 16px',
                             background: 'transparent',

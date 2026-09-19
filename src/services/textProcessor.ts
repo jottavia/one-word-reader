@@ -17,13 +17,15 @@ export const calculateORP = (word: string): number => {
 
 export type RawItem = { type: 'text' | 'image'; value: string; cfi?: string };
 
-const NOISE_PATTERNS = [
-    /^[0-9]+$/,          // Page numbers
-    /^[ivxlcdm]+$/i,     // Roman numerals (front matter)
+const SHORT_NOISE_PATTERNS = [
+    /^[ivxlcdm]{2,}$/i,     // Roman numerals (front matter) — {2,} so single "I" is kept
+    /^Page \d+/i         // Page footers
+];
+
+const LONG_NOISE_PATTERNS = [
     /^ISBN \d+/i,        // ISBN metadata
     /^Copyright/i,       // Copyright blurb
-    /^All rights reserved/i,
-    /^Page \d+/i         // Page footers
+    /^All rights reserved/i
 ];
 
 export const processText = (inputs: RawItem[] | string): Token[] => {
@@ -50,8 +52,12 @@ export const processText = (inputs: RawItem[] | string): Token[] => {
         if (!clean) return null;
 
         // "Noise" filtering logic (skip metadata/page numbers)
-        if (clean.length < 30) { // Only filter short snippets to avoid collateral damage
-            const isNoise = NOISE_PATTERNS.some(pattern => pattern.test(clean));
+        // Long patterns (Copyright/ISBN) apply at any length; short patterns
+        // (roman numerals, page footers) only apply to short snippets to
+        // avoid collateral damage on real sentences.
+        if (LONG_NOISE_PATTERNS.some(pattern => pattern.test(clean))) return null;
+        if (clean.length < 30) {
+            const isNoise = SHORT_NOISE_PATTERNS.some(pattern => pattern.test(clean));
             if (isNoise) return null;
         }
 

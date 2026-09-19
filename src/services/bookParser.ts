@@ -1,4 +1,4 @@
-import ePub, { Book } from 'epubjs';
+import ePub, { type Book } from 'epubjs';
 
 export class BookParser {
     book: Book;
@@ -9,7 +9,7 @@ export class BookParser {
 
     async getMetadata() {
         await this.book.ready;
-        return (this.book as any).package.metadata;
+        return this.book.package.metadata;
     }
 
     async getCoverUrl() {
@@ -23,7 +23,7 @@ export class BookParser {
      */
     async getChapterText(spineIndex: number): Promise<string> {
         await this.book.ready;
-        const spineItem = (this.book.spine as any).get(spineIndex);
+        const spineItem = this.book.spine.get(spineIndex);
         if (!spineItem) return "";
 
         // Load the document for this chapter
@@ -32,14 +32,14 @@ export class BookParser {
         const doc: Document = await spineItem.load(this.book.load.bind(this.book));
 
         // Basic extraction - later we can use standard DOM traversal to ignore footers/nav
-        return doc.body.innerText;
+        return doc.body.textContent ?? "";
     }
     /**
      * Extracts text and generates CFIs for each word.
      */
     async getChapterData(spineIndex: number): Promise<{ type: 'text' | 'image', value: string, cfi: string }[]> {
         await this.book.ready;
-        const spineItem = (this.book.spine as any).get(spineIndex);
+        const spineItem = this.book.spine.get(spineIndex);
         if (!spineItem) return [];
 
         const doc: Document = await spineItem.load(this.book.load.bind(this.book));
@@ -52,7 +52,7 @@ export class BookParser {
                         ? NodeFilter.FILTER_ACCEPT
                         : NodeFilter.FILTER_REJECT;
                 }
-                if (node.nodeType === Node.ELEMENT_NODE && node.nodeName === 'IMG') {
+                if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName.toUpperCase() === 'IMG') {
                     return NodeFilter.FILTER_ACCEPT;
                 }
                 return NodeFilter.FILTER_SKIP;
@@ -61,8 +61,8 @@ export class BookParser {
 
         let node: Node | null;
 
-        while (node = walker.nextNode()) {
-            if (node.nodeType === Node.ELEMENT_NODE && node.nodeName === 'IMG') {
+        while ((node = walker.nextNode()) !== null) {
+            if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName.toUpperCase() === 'IMG') {
                 // Handle Image
                 const img = node as HTMLImageElement;
                 const src = img.src; // epub.js should have resolved this to a blob/url

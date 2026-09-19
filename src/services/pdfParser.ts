@@ -8,6 +8,18 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
     import.meta.url
 ).toString();
 
+interface PdfTextItem {
+    str?: unknown;
+}
+
+const getItemText = (item: unknown): string => {
+    if (typeof item === 'object' && item !== null && 'str' in item) {
+        const str = (item as PdfTextItem).str;
+        return typeof str === 'string' ? str : '';
+    }
+    return '';
+};
+
 export class PdfParser {
     data: ArrayBuffer;
     doc: pdfjs.PDFDocumentProxy | null = null;
@@ -28,9 +40,10 @@ export class PdfParser {
         const page = await this.doc!.getPage(pageIndex + 1);
         const content = await page.getTextContent();
 
-        // Simple extraction: join all strings. 
+        // Simple extraction: join all strings.
         // PDF text items often have weird spacing, might need better heuristics later.
-        return content.items.map((item: any) => item.str).join(' ');
+        // Marked-content items have no `str` — getItemText safely returns ''.
+        return content.items.map((item) => getItemText(item)).join(' ');
     }
 
     async getPageData(pageIndex: number): Promise<{ type: 'text' | 'image', value: string, cfi: string }[]> {
@@ -44,9 +57,9 @@ export class PdfParser {
 
         const tokens: { type: 'text' | 'image', value: string, cfi: string }[] = [];
 
-        content.items.forEach((item: any, idx) => {
-            // item.str is the text
-            const text = item.str || "";
+        content.items.forEach((item, idx) => {
+            // item.str is the text (may be missing on marked-content items)
+            const text = getItemText(item);
             // We use a custom cfi format: "pdf:page:index"
             // Note: This won't "highlight" in the PDF canvas easily without custom coordinate mapping logic.
             const cfi = `pdf:${pageIndex}:${idx}`;
@@ -54,7 +67,7 @@ export class PdfParser {
             if (text.trim()) {
                 // Split words
                 const regex = /\S+/g;
-                let match;
+                let match: RegExpExecArray | null;
                 while ((match = regex.exec(text)) !== null) {
                     tokens.push({ type: 'text', value: match[0], cfi });
                 }
@@ -78,11 +91,12 @@ export class PdfParser {
         canvas.width = viewport.width;
 
         const renderContext = {
+            canvas,
             canvasContext: canvas.getContext('2d')!,
             viewport: viewport
         };
 
-        await page.render(renderContext as any).promise;
+        await page.render(renderContext).promise;
 
         // Style nicely to fit
         canvas.style.maxWidth = '100%';

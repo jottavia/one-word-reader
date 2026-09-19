@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useReaderStore } from '../../store/useReaderStore';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -19,7 +19,8 @@ export const ResonatorOverlay = () => {
         resonanceDirection
     } = useReaderStore();
 
-    const [currentToken, setCurrentToken] = useState(chapterTokens[wordIndex]);
+    // Derive the visible token directly so the overlay never lags one tick behind.
+    const currentToken = chapterTokens[wordIndex];
     const sessionStartTimeRef = useRef<number | null>(null);
 
     // Reset start time when resonance starts
@@ -65,8 +66,6 @@ export const ResonatorOverlay = () => {
             return;
         }
         if (!token) return;
-
-        setCurrentToken(token);
 
         // Calculate current speed based on ramp-up
         let currentWpm = wpm;
