@@ -109,6 +109,9 @@ export const ResonatorOverlay = () => {
         );
     }
 
+    const prefersReducedMotion = typeof window !== 'undefined' && !!window.matchMedia
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     const overlayStyle = {
         position: 'fixed' as const,
         top: 0, left: 0, right: 0, bottom: 0,
@@ -120,25 +123,23 @@ export const ResonatorOverlay = () => {
         justifyContent: 'center',
         zIndex: 1000,
         flexDirection: 'column' as const,
-        cursor: 'pointer'
+        cursor: 'pointer',
+        touchAction: 'none' as const,
     };
+
+    const stop = () => setIsResonating(false);
 
     if (currentToken.type === 'image') {
         return (
             <AnimatePresence>
                 <motion.div
-                    initial={{ opacity: 0 }}
+                    initial={prefersReducedMotion ? false : { opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    exit={prefersReducedMotion ? { opacity: 1 } : { opacity: 0 }}
+                    transition={prefersReducedMotion ? { duration: 0 } : undefined}
                     style={overlayStyle}
-                    onMouseUp={() => {
-                        console.log('[ResonatorOverlay] Mouse Up - Stopping Resonance');
-                        setIsResonating(false);
-                    }}
-                    onTouchEnd={() => {
-                        console.log('[ResonatorOverlay] Touch End - Stopping Resonance');
-                        setIsResonating(false);
-                    }}
+                    onMouseUp={stop}
+                    onTouchEnd={stop}
                 >
                     <img src={currentToken.value} alt="Visual content" style={{ maxWidth: '90%', maxHeight: '60vh', objectFit: 'contain' }} />
                     <div style={{ marginTop: '20px', fontSize: '1rem', color: themeColor, opacity: 0.7 }}>
@@ -158,18 +159,13 @@ export const ResonatorOverlay = () => {
     return (
         <AnimatePresence>
             <motion.div
-                initial={{ opacity: 0 }}
+                initial={prefersReducedMotion ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                exit={prefersReducedMotion ? { opacity: 1 } : { opacity: 0 }}
+                transition={prefersReducedMotion ? { duration: 0 } : undefined}
                 style={{ ...overlayStyle, flexDirection: 'row' }} // Text needs row layout
-                onMouseUp={() => {
-                    console.log('[ResonatorOverlay] Mouse Up - Stopping Resonance');
-                    setIsResonating(false);
-                }}
-                onTouchEnd={() => {
-                    console.log('[ResonatorOverlay] Touch End - Stopping Resonance');
-                    setIsResonating(false);
-                }}
+                onMouseUp={stop}
+                onTouchEnd={stop}
             >
                 <div style={{ 
                     fontSize: `${fontSize}rem`, 

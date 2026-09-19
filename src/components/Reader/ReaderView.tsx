@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useReaderStore } from '../../store/useReaderStore';
-import { loadBook, saveProgress, loadProgress, loadMetadata, type BookMetadata } from '../../services/storage';
-import { BookParser } from '../../services/bookParser';
-import { PdfParser } from '../../services/pdfParser';
+import { loadBook, saveProgress, loadReaderProgress, loadMetadata, type BookMetadata } from '../../services/storage';
+import type { BookParser } from '../../services/bookParser';
+import type { PdfParser } from '../../services/pdfParser';
 import { processText, type Token } from '../../services/textProcessor';
 import { ResonatorOverlay } from '../Resonator/ResonatorOverlay';
 import { ReaderControls } from './ReaderControls';
@@ -45,6 +45,7 @@ export const ReaderView = () => {
     const [metadata, setMetadata] = useState<BookMetadata | null>(null);
     const [pdfPage, setPdfPage] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const viewerRef = useRef<HTMLDivElement>(null);
     const epubParserRef = useRef<BookParser | null>(null);
@@ -65,7 +66,6 @@ export const ReaderView = () => {
     // Stop reading when window loses focus (backgrounded)
     useEffect(() => {
         const handleStop = () => {
-            console.log('[ReaderView] Window blurred or hidden - forcing stop');
             setIsResonating(false);
         };
         const handleVisibility = () => {
@@ -172,10 +172,16 @@ export const ReaderView = () => {
     // Load Metadata
     useEffect(() => {
         if (currentBookId) {
+            // Data fetch on book change — resets error then loads async.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setLoadError(null);
             loadMetadata(currentBookId).then(meta => {
                 if (meta) setMetadata(meta);
                 // If no metadata (legacy books), assume epub
                 else setMetadata({ id: currentBookId, title: 'Unknown', type: 'epub', addedAt: 0 });
+            }).catch((e) => {
+                console.error(e);
+                setLoadError('Could not load this book. It may be corrupted.');
             });
         }
     }, [currentBookId]);
@@ -190,71 +196,98 @@ export const ReaderView = () => {
         const { themeColor: initialColor, themeBackground: initialBg } = useReaderStore.getState();
 
         const initBook = async () => {
-            const bookData = await loadBook(currentBookId);
-            if (!bookData || cancelled) return;
+            try {
+                const bookData = await loadBook(currentBookId);
+                if (!bookData || cancelled) return;
 
-            if (metadata.type === 'pdf') {
-                const parser = new PdfParser(bookData);
-                await parser.init();
-                if (cancelled) {
-                    parser.destroy();
-                    return;
-                }
-                pdfParserRef.current = parser;
-                setTotalPages(parser.pageCount);
+                if (metadata.type === 'pdf') {
+                    // Code-split: pdfjs only downloads when a PDF is opened.
+                    const { PdfParser } = await import('../../services/pdfParser');
+                    const parser = new PdfParser(bookData);
+                    await parser.init();
+                    if (cancelled) {
+                        parser.destroy();
+                        return;
+                    }
+                    pdfParserRef.current = parser;
+                    setTotalPages(parser.pageCount);
 
-                // Load Progress
-                const savedCfi = await loadProgress(currentBookId);
-                let startPage = 0;
-                if (savedCfi && savedCfi.startsWith('pdf:')) {
-                    startPage = parseInt(savedCfi.split(':')[1] ?? '0', 10) || 0;
-                }
-                if (!cancelled) setPdfPage(startPage);
+                    // Load Progress (per-book CFI + word index)
+                    const saved = await loadReaderProgress(currentBookId);
+                    let startPage = 0;
+                    if (saved?.cfi.startsWith('pdf:')) {
+                        startPage = parseInt(saved.cfi.split(':')[1] ?? '0', 10) || 0;
+                    }
+                    if (!cancelled) {
+                        setPdfPage(Math.min(startPage, Math.max(0, parser.pageCount - 1)));
+                        useReaderStore.getState().setWordIndex(saved?.wordIndex ?? 0);
+                    }
 
-                // Render will trigger via pdfPage effect
-            } else {
-                // EPUB
-                const parser = new BookParser(bookData);
-                epubParserRef.current = parser;
-
-                const rendition = parser.book.renderTo(container, {
-                    width: '100%',
-                    height: '100%',
-                    flow: 'scrolled-doc'
-                }) as unknown as RenditionLike;
-                renditionRef.current = rendition;
-
-                // Register Themes
-                rendition.themes.register('custom', {
-                    body: { color: initialColor, background: initialBg }
-                });
-                rendition.themes.select('custom');
-
-                const handleRelocated = (location: RelocatedLocation) => {
-                    const cfi = location.start.cfi;
-                    if (currentBookId) void saveProgress(currentBookId, cfi);
-
-                    const index = location.start.index;
-
-                    // Extract and tokenize text for the current chapter
-                    void parser.getChapterData(index).then((data) => {
-                        if (cancelled) return;
-                        const tokens = processText(data);
-                        useReaderStore.getState().setChapterTokens(tokens);
-                    });
-                };
-
-                // Listen for chapter changes
-                rendition.on('relocated', handleRelocated);
-
-                // Restore progress
-                const savedCfi = await loadProgress(currentBookId);
-                if (cancelled) return;
-                if (savedCfi) {
-                    await rendition.display(savedCfi);
+                    // Render will trigger via pdfPage effect
                 } else {
-                    await rendition.display();
+                    // EPUB
+                    // Code-split: epubjs only downloads when an EPUB is opened.
+                    const { BookParser } = await import('../../services/bookParser');
+                    const parser = new BookParser(bookData);
+                    epubParserRef.current = parser;
+
+                    const rendition = parser.book.renderTo(container, {
+                        width: '100%',
+                        height: '100%',
+                        flow: 'scrolled-doc'
+                    }) as unknown as RenditionLike;
+                    renditionRef.current = rendition;
+
+                    // Register Themes
+                    rendition.themes.register('custom', {
+                        body: { color: initialColor, background: initialBg }
+                    });
+                    rendition.themes.select('custom');
+
+                    const handleRelocated = (location: RelocatedLocation) => {
+                        const cfi = location.start.cfi;
+                        const wordIndex = useReaderStore.getState().wordIndex;
+                        if (currentBookId) void saveProgress(currentBookId, cfi, wordIndex);
+
+                        const index = location.start.index;
+
+                        // Extract and tokenize text for the current chapter
+                        void parser.getChapterData(index).then((data) => {
+                            if (cancelled) return;
+                            const tokens = processText(data);
+                            const store = useReaderStore.getState();
+                            store.setChapterTokens(tokens);
+                        });
+                    };
+
+                    // Listen for chapter changes
+                    rendition.on('relocated', handleRelocated);
+
+                    // Restore progress
+                    const saved = await loadReaderProgress(currentBookId);
+                    if (cancelled) return;
+                    if (saved?.cfi) {
+                        try {
+                            await rendition.display(saved.cfi);
+                        } catch {
+                            await rendition.display();
+                        }
+                    } else {
+                        await rendition.display();
+                    }
+                    if (saved && !cancelled) {
+                        // Tokens arrive via relocated; clamp index after they load.
+                        const applyIndex = () => {
+                            const store = useReaderStore.getState();
+                            if (store.chapterTokens.length > 0) store.setWordIndex(saved.wordIndex);
+                            else window.setTimeout(applyIndex, 250);
+                        };
+                        applyIndex();
+                    }
                 }
+            } catch (e) {
+                console.error(e);
+                if (!cancelled) setLoadError('Could not open this book. The file may be corrupted or unsupported.');
             }
         };
 
@@ -297,14 +330,23 @@ export const ReaderView = () => {
                 if (cancelled) return;
                 const tokens = await parser.getPageData(pageToRender);
                 if (cancelled) return;
-                useReaderStore.getState().setChapterTokens(processText(tokens));
-                useReaderStore.getState().setWordIndex(0);
+                const store = useReaderStore.getState();
+                store.setChapterTokens(processText(tokens));
+                // Restore per-book index when reopening on this page; otherwise start at 0.
+                const saved = await loadReaderProgress(bookId).catch(() => null);
+                if (cancelled) return;
+                if (saved && saved.cfi === `pdf:${pageToRender}:0`) {
+                    store.setWordIndex(saved.wordIndex);
+                } else {
+                    store.setWordIndex(0);
+                }
 
                 // Save progress
                 const cfi = `pdf:${pageToRender}:0`;
-                await saveProgress(bookId, cfi);
+                await saveProgress(bookId, cfi, store.wordIndex);
             } catch (error) {
-                console.error('[ReaderView] Failed to render PDF page', error);
+                console.error(error);
+                if (!cancelled) setLoadError('Could not render this PDF page.');
             }
         };
         void renderPdf();
@@ -368,22 +410,18 @@ export const ReaderView = () => {
         <div
             onMouseDown={(e) => {
                 if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input')) return;
-                console.log('[ReaderView] Mouse Down - Starting Resonance');
                 setResonanceDirection('forward');
                 setIsResonating(true);
             }}
             onTouchStart={(e) => {
                 if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input')) return;
-                console.log('[ReaderView] Touch Start - Starting Resonance');
                 setResonanceDirection('forward');
                 setIsResonating(true);
             }}
             onMouseUp={() => {
-                console.log('[ReaderView] Mouse Up - Stopping Resonance');
                 setIsResonating(false);
             }}
             onTouchEnd={() => {
-                console.log('[ReaderView] Touch End - Stopping Resonance');
                 setIsResonating(false);
             }}
             style={{
@@ -437,6 +475,26 @@ export const ReaderView = () => {
 
             <div ref={viewerRef} style={{ flex: 1, overflow: 'hidden', overflowY: metadata?.type === 'pdf' ? 'auto' : 'hidden' }} />
 
+            {loadError && (
+                <div role="alert" style={{
+                    position: 'absolute', top: '70px', left: '50%', transform: 'translateX(-50%)',
+                    background: '#b00020', color: '#fff', padding: '10px 16px', borderRadius: '8px',
+                    zIndex: 50, display: 'flex', gap: '12px', alignItems: 'center', maxWidth: '90vw',
+                }}>
+                    <span>{loadError}</span>
+                    <button
+                        onClick={() => {
+                            setLoadError(null);
+                            setIsResonating(false);
+                            setCurrentBookId(null);
+                        }}
+                        style={{ background: '#fff', color: '#b00020', border: 'none', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                        Library
+                    </button>
+                </div>
+            )}
+
             {/* Thumb Zone / Deadman Switch Indicator */}
             {!isResonating && (
                 <div style={{
@@ -484,6 +542,9 @@ export const ReaderView = () => {
                             0% { transform: scale(1); opacity: 0.5; }
                             50% { transform: scale(1.1); opacity: 0.8; }
                             100% { transform: scale(1); opacity: 0.5; }
+                        }
+                        @media (prefers-reduced-motion: reduce) {
+                            div { animation: none !important; }
                         }
                     `}</style>
                 </div>

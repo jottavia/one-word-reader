@@ -39,18 +39,51 @@ interface ReaderState {
     setPunctuationDelay: (val: boolean) => void;
 }
 
+export const WPM_MIN = 50;
+export const WPM_MAX = 2000;
+export const WPM_DEFAULT = 300;
+export const FONT_MIN = 2;
+export const FONT_MAX = 10;
+export const WARMUP_MIN = 0;
+export const WARMUP_MAX = 10;
+
+const clamp = (v: number, min: number, max: number, fallback: number): number => {
+    if (typeof v !== 'number' || Number.isNaN(v)) return fallback;
+    return Math.min(max, Math.max(min, v));
+};
+
+const prefersDark = (): boolean => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    try {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    } catch {
+        return false;
+    }
+};
+
+const defaultTheme = () => ({
+    themeColor: prefersDark() ? '#eeeeee' : '#111111',
+    themeBackground: prefersDark() ? '#111111' : '#ffffff',
+});
+
 export const useReaderStore = create<ReaderState>()(persist((set) => ({
     currentBookId: null,
-    setCurrentBookId: (id) => set({ currentBookId: id }),
+    // Switching books resets position; the per-book index is restored from storage.
+    setCurrentBookId: (id) => set({ currentBookId: id, wordIndex: 0, chapterTokens: [], isResonating: false, resonanceDirection: 'forward' }),
     isResonating: false,
     setIsResonating: (val) => set({ isResonating: val }),
-    wpm: 300,
-    setWpm: (wpm) => set({ wpm }),
+    wpm: WPM_DEFAULT,
+    setWpm: (wpm) => set({ wpm: clamp(wpm, WPM_MIN, WPM_MAX, WPM_DEFAULT) }),
 
     chapterTokens: [],
-    setChapterTokens: (tokens) => set({ chapterTokens: tokens }),
+    setChapterTokens: (tokens) => set((state) => ({
+        chapterTokens: tokens,
+        wordIndex: clamp(state.wordIndex, 0, Math.max(0, tokens.length - 1), 0),
+    })),
     wordIndex: 0,
-    setWordIndex: (index) => set({ wordIndex: index }),
+    setWordIndex: (index) => set((state) => ({
+        wordIndex: clamp(Math.floor(index), 0, Math.max(0, state.chapterTokens.length - 1), 0),
+    })),
     resonanceDirection: 'forward',
     setResonanceDirection: (dir) => set({ resonanceDirection: dir }),
 
@@ -58,22 +91,23 @@ export const useReaderStore = create<ReaderState>()(persist((set) => ({
     setPunctuationDelay: (val) => set({ punctuationDelay: val }),
 
     // Theme settings
-    themeColor: (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? '#eeeeee' : '#111111',
-    themeBackground: (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? '#111111' : '#ffffff',
+    ...defaultTheme(),
     setTheme: (color, bg) => set({ themeColor: color, themeBackground: bg }),
 
     accelerationDuration: 3, // seconds
-    setAccelerationDuration: (seconds) => set({ accelerationDuration: seconds }),
+    setAccelerationDuration: (seconds) => set({ accelerationDuration: clamp(seconds, WARMUP_MIN, WARMUP_MAX, 3) }),
 
     // Reset
     resetSettings: () => set({
-        wpm: 300,
+        wpm: WPM_DEFAULT,
         fontSize: 4,
         fontFamily: 'Mulish, sans-serif',
-        themeColor: (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? '#eeeeee' : '#111111',
-        themeBackground: (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? '#111111' : '#ffffff',
+        ...defaultTheme(),
         accelerationDuration: 3,
-        punctuationDelay: true
+        punctuationDelay: true,
+        wordIndex: 0,
+        isResonating: false,
+        resonanceDirection: 'forward',
     }),
 
     // Auto-advance triggers
@@ -82,20 +116,21 @@ export const useReaderStore = create<ReaderState>()(persist((set) => ({
 
     // Font settings
     fontSize: 4, // rem
-    setFontSize: (size) => set({ fontSize: size }),
+    setFontSize: (size) => set({ fontSize: clamp(size, FONT_MIN, FONT_MAX, 4) }),
     fontFamily: 'Mulish, sans-serif',
     setFontFamily: (font) => set({ fontFamily: font }),
 }), {
     name: 'reader-settings', // name of the item in the storage (must be unique)
     partialize: (state) => ({
-        // Only persist these fields
+        // Only persist these fields. Position is per-book in localforage;
+        // the global wordIndex is intentionally NOT persisted to avoid
+        // leaking one book's offset into another.
         wpm: state.wpm,
         themeColor: state.themeColor,
         themeBackground: state.themeBackground,
         fontSize: state.fontSize,
         fontFamily: state.fontFamily,
         accelerationDuration: state.accelerationDuration,
-        wordIndex: state.wordIndex,
         currentBookId: state.currentBookId,
         punctuationDelay: state.punctuationDelay
     })

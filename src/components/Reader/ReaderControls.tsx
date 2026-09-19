@@ -55,6 +55,8 @@ const ControlGroups = ({
         resetSettings
     } = useReaderStore();
 
+    const [confirmingReset, setConfirmingReset] = useState(false);
+
     const groupStyle: React.CSSProperties = {
         display: 'flex',
         flexDirection: isVertical ? 'column' : 'row',
@@ -291,9 +293,13 @@ const ControlGroups = ({
                         </div>
                         <button
                             onClick={() => {
-                                if (window.confirm('Reset all settings to default?')) {
+                                if (confirmingReset) {
                                     resetSettings();
                                     setShowSettings(false);
+                                    setConfirmingReset(false);
+                                } else {
+                                    setConfirmingReset(true);
+                                    window.setTimeout(() => setConfirmingReset(false), 4000);
                                 }
                             }}
                             style={{
@@ -302,7 +308,7 @@ const ControlGroups = ({
                                 cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem'
                             }}
                         >
-                            <RotateCcw size={14} /> Reset Defaults
+                            <RotateCcw size={14} /> {confirmingReset ? 'Click to confirm' : 'Reset Defaults'}
                         </button>
                     </div>
                 )}

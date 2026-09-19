@@ -28,5 +28,22 @@ describe('Text Processor', () => {
             expect(tokens[0].delayMultiplier).toBe(1);
             expect(tokens[1].delayMultiplier).toBeGreaterThan(1); // Period should delay
         });
+
+        it('should keep the pronoun I (not roman-numeral noise)', () => {
+            const tokens = processText('I think therefore I am');
+            expect(tokens.map(t => t.value)).toEqual(['I', 'think', 'therefore', 'I', 'am']);
+        });
+
+        it('should keep pure numbers as content', () => {
+            const tokens = processText('In 2026 we read');
+            expect(tokens.map(t => t.value)).toContain('2026');
+        });
+
+        it('should filter the copyright token itself', () => {
+            const tokens = processText('Copyright 2026 by Someone');
+            expect(tokens.map(t => t.value)).not.toContain('Copyright');
+            // Remaining words are kept — filtering is per-token by design.
+            expect(tokens.map(t => t.value)).toContain('2026');
+        });
     });
 });
