@@ -23,6 +23,7 @@ const getItemText = (item: unknown): string => {
 export class PdfParser {
     data: ArrayBuffer;
     doc: pdfjs.PDFDocumentProxy | null = null;
+    loadingTask: pdfjs.PDFDocumentLoadingTask | null = null;
     pageCount: number = 0;
 
     constructor(data: ArrayBuffer) {
@@ -30,7 +31,12 @@ export class PdfParser {
     }
 
     async init() {
-        this.doc = await pdfjs.getDocument({ data: this.data }).promise;
+        // Keep the loading task: in pdfjs v6 cleanup lives on the task
+        // (destroy) + document (cleanup), not doc.destroy().
+        // Clone data because getDocument may detach the caller's buffer.
+        const dataCopy = this.data.slice(0);
+        this.loadingTask = pdfjs.getDocument({ data: dataCopy });
+        this.doc = await this.loadingTask.promise;
         this.pageCount = this.doc.numPages;
     }
 
@@ -106,8 +112,16 @@ export class PdfParser {
 
     destroy() {
         if (this.doc) {
-            this.doc.destroy();
+            void this.doc.cleanup().catch(() => {
+                // ignore teardown errors
+            });
             this.doc = null;
+        }
+        if (this.loadingTask) {
+            void this.loadingTask.destroy().catch(() => {
+                // ignore teardown errors
+            });
+            this.loadingTask = null;
         }
     }
 }
