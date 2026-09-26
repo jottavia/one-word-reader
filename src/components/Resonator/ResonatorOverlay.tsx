@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { useReaderStore } from '../../store/useReaderStore';
-import { AnimatePresence, motion } from 'framer-motion';
 
 export const ResonatorOverlay = () => {
     const {
@@ -109,9 +108,6 @@ export const ResonatorOverlay = () => {
         );
     }
 
-    const prefersReducedMotion = typeof window !== 'undefined' && !!window.matchMedia
-        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
     const overlayStyle = {
         position: 'fixed' as const,
         top: 0, left: 0, right: 0, bottom: 0,
@@ -131,22 +127,16 @@ export const ResonatorOverlay = () => {
 
     if (currentToken.type === 'image') {
         return (
-            <AnimatePresence>
-                <motion.div
-                    initial={prefersReducedMotion ? false : { opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={prefersReducedMotion ? { opacity: 1 } : { opacity: 0 }}
-                    transition={prefersReducedMotion ? { duration: 0 } : undefined}
-                    style={overlayStyle}
-                    onMouseUp={stop}
-                    onTouchEnd={stop}
-                >
-                    <img src={currentToken.value} alt="Visual content" style={{ maxWidth: '90%', maxHeight: '60vh', objectFit: 'contain' }} />
-                    <div style={{ marginTop: '20px', fontSize: '1rem', color: themeColor, opacity: 0.7 }}>
-                        Image • {wordIndex} / {chapterTokens.length}
-                    </div>
-                </motion.div>
-            </AnimatePresence>
+            <div
+                style={overlayStyle}
+                onMouseUp={stop}
+                onTouchEnd={stop}
+            >
+                <img src={currentToken.value} alt="Visual content" style={{ maxWidth: '90%', maxHeight: '60vh', objectFit: 'contain' }} />
+                <div style={{ marginTop: '20px', fontSize: '1rem', color: themeColor, opacity: 0.7 }}>
+                    Image • {wordIndex} / {chapterTokens.length}
+                </div>
+            </div>
         );
     }
 
@@ -157,16 +147,11 @@ export const ResonatorOverlay = () => {
     const rightPart = word.slice(currentToken.orpIndex + 1);
 
     return (
-        <AnimatePresence>
-            <motion.div
-                initial={prefersReducedMotion ? false : { opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={prefersReducedMotion ? { opacity: 1 } : { opacity: 0 }}
-                transition={prefersReducedMotion ? { duration: 0 } : undefined}
-                style={{ ...overlayStyle, flexDirection: 'row' }} // Text needs row layout
-                onMouseUp={stop}
-                onTouchEnd={stop}
-            >
+        <div
+            style={{ ...overlayStyle, flexDirection: 'row' }} // Text needs row layout
+            onMouseUp={stop}
+            onTouchEnd={stop}
+        >
                 <div style={{ 
                     fontSize: `${fontSize}rem`, 
                     fontFamily: fontFamily, 
@@ -192,7 +177,6 @@ export const ResonatorOverlay = () => {
                 }}>
                     {wordIndex} / {chapterTokens.length} • {wpm} WPM
                 </div>
-            </motion.div>
-        </AnimatePresence>
+        </div>
     );
 };

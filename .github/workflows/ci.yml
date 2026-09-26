@@ -1,0 +1,35 @@
+# CI: typecheck, lint, tests, build, and a prod dependency audit gate.
+# Fails on high/critical production vulnerabilities (dev-only advisories ignored).
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npx eslint .
+      - run: npx vitest run
+      - run: npm run build
+      - name: Prod audit gate (high+ fail)
+        run: npm audit --omit=dev --audit-level=high
