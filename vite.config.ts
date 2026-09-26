@@ -5,6 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Project Pages URL: https://jottavia.github.io/one-word-reader/
+  base: '/one-word-reader/',
   plugins: [
     react(),
     VitePWA({
