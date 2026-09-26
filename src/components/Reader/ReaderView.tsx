@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useReaderStore } from '../../store/useReaderStore';
+import { useBreakpoints } from '../../hooks/useBreakpoints';
 import { loadBook, saveProgress, loadReaderProgress, loadMetadata, type BookMetadata } from '../../services/storage';
 import type { BookParser } from '../../services/bookParser';
 import type { PdfParser } from '../../services/pdfParser';
@@ -387,13 +388,7 @@ export const ReaderView = () => {
         return unsub;
     }, [metadata, pdfPage, totalPages]);
 
-    const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth < 768);
-
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
+    const { isDesktop } = useBreakpoints();
 
     // Sync Meta Theme Color (for iOS status bar)
     useEffect(() => {
@@ -445,7 +440,9 @@ export const ReaderView = () => {
                 background: themeBackground,
                 borderBottom: `1px solid ${themeColor}22`,
                 display: 'flex',
-                justifyContent: isMobile ? 'flex-start' : 'space-between',
+                flexWrap: 'wrap',
+                rowGap: '8px',
+                justifyContent: isDesktop ? 'space-between' : 'flex-start',
                 alignItems: 'center',
                 gap: '15px',
                 zIndex: 10

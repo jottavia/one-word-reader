@@ -1,6 +1,7 @@
 import { useReaderStore } from '../../store/useReaderStore';
+import { useBreakpoints } from '../../hooks/useBreakpoints';
 import { Palette, Type, Maximize, Check, RotateCcw, Settings, Menu, X } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 const THEMES = [
     { name: 'Light', color: '#111111', bg: '#ffffff' },
@@ -18,6 +19,7 @@ const FONTS = [
 
 interface ControlGroupsProps {
     isVertical?: boolean;
+    compact?: boolean;
     showThemes: boolean;
     setShowThemes: (v: boolean | ((p: boolean) => boolean)) => void;
     showFonts: boolean;
@@ -35,6 +37,7 @@ const stopHoldToRead = (e: React.SyntheticEvent) => {
 
 const ControlGroups = ({
     isVertical = false,
+    compact = false,
     showThemes,
     setShowThemes,
     showFonts,
@@ -60,9 +63,19 @@ const ControlGroups = ({
     const groupStyle: React.CSSProperties = {
         display: 'flex',
         flexDirection: isVertical ? 'column' : 'row',
+        flexWrap: compact && !isVertical ? 'wrap' : 'nowrap',
+        rowGap: compact ? '10px' : undefined,
         alignItems: isVertical ? 'flex-start' : 'center',
-        gap: isVertical ? '20px' : '15px',
+        gap: isVertical ? '20px' : compact ? '10px 15px' : '15px',
         width: isVertical ? '100%' : 'auto'
+    };
+
+    // 44px minimum touch targets (WCAG) for tablets/phones.
+    const iconBtn: React.CSSProperties = {
+        background: 'none', border: 'none', cursor: 'pointer', color: 'inherit',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+        minWidth: '44px', minHeight: '44px', padding: '4px',
+        touchAction: 'manipulation', // no double-tap zoom delay on controls
     };
 
     const separator = !isVertical && <div style={{ width: '1px', height: '20px', background: 'currentColor', opacity: 0.3 }} />;
@@ -198,9 +211,9 @@ const ControlGroups = ({
 
             {separator}
 
-            {/* Fullscreen - only on large screens usually but kept here */}
-            {!isVertical && (
-                <button onClick={onFullscreen} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
+            {/* Fullscreen - hidden on compact tablet bar to save room */}
+            {!isVertical && !compact && (
+                <button onClick={onFullscreen} style={iconBtn} aria-label="Toggle fullscreen">
                     <Maximize size={18} />
                 </button>
             )}
@@ -211,7 +224,8 @@ const ControlGroups = ({
             <div style={{ position: 'relative' }}>
                 <button
                     onClick={() => setShowThemes(!showThemes)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    style={iconBtn}
+                    aria-label="Change theme"
                 >
                     <Palette size={18} />
                     {isVertical && <span>Themes</span>}
@@ -257,7 +271,8 @@ const ControlGroups = ({
             <div style={{ position: 'relative' }}>
                 <button
                     onClick={() => setShowSettings(!showSettings)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    style={iconBtn}
+                    aria-label="Reader settings"
                 >
                     <Settings size={18} />
                     {isVertical && <span>Settings</span>}
@@ -324,7 +339,7 @@ export const ReaderControls = () => {
     const [showFonts, setShowFonts] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth < 768);
+    const { isMobile, isTablet } = useBreakpoints();
 
     const closeAll = () => {
         setIsMenuOpen(false);
@@ -332,12 +347,6 @@ export const ReaderControls = () => {
         setShowFonts(false);
         setShowSettings(false);
     };
-
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
 
     const handleFullscreen = () => {
         if (!document.fullscreenElement) {
@@ -439,6 +448,14 @@ export const ReaderControls = () => {
                     </div>
                 )}
             </>
+        );
+    }
+
+    if (isTablet) {
+        return (
+            <div style={{ ...containerStyle, flexWrap: 'wrap', rowGap: '8px', maxWidth: '100%' }}>
+                <ControlGroups compact {...groupsProps} />
+            </div>
         );
     }
 

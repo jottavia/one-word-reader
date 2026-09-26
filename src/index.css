@@ -38,3 +38,16 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* Touch devices (phones/tablets): WCAG 44px minimum touch targets
+   and no double-tap zoom delay on controls. Pinch-zoom stays enabled
+   for reading content; only the resonance overlay locks touch. */
+@media (pointer: coarse) {
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  button, input[type="range"] {
+    touch-action: manipulation;
+  }
+}
